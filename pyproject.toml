@@ -1,0 +1,29 @@
+[project]
+name = "arxiv-researcher"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "feedparser==6.0.11",
+    "langchain-core==0.3.49",
+    "langchain-openai==0.3.11",
+    "langgraph-checkpoint==2.0.23",
+    "langgraph==0.3.21",
+    "pydantic-settings==2.5.2",
+    "tenacity==8.5.0",
+    "langchain-anthropic==0.3.10",
+    "retry==0.9.2",
+    "langchain-google-genai",
+    "langchain_community",
+    "pydantic>=2.0.0",
+    "tavily-python",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "langgraph-cli[inmem]==0.1.81",
+]
+
+[tool.setuptools]
+packages = ["arxiv_researcher"]

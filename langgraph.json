@@ -1,0 +1,14 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "science_magi": "./my_agent/science_magi.py:graph",
+    "survey_magi": "./my_agent/sub_agent/survey_magi.py:graph",
+    "planning_magi": "./my_agent/sub_agent/planning_magi.py:graph",
+    "execution_magi": "./my_agent/sub_agent/execution_magi.py:graph",
+    "analysis_magi": "./my_agent/sub_agent/analysis_magi.py:graph",
+    "report_magi": "./my_agent/sub_agent/report_magi.py:graph"
+  },
+  "env": ".env"
+}
