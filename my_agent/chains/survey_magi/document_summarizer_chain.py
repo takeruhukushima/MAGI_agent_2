@@ -29,7 +29,7 @@ class DocumentSummarizerChain:
                     "research_theme": theme,
                     "document_content": doc.get("content")
                 })
-                summaries.append({"title": doc.get("title"), "url": doc.get("url"), "summary": result.summary})
+                summaries.append({"id": doc.get("id"),"title": doc.get("title"), "url": doc.get("url"), "summary": result.summary})
             except Exception as e:
                 print(f"  > Failed to summarize a document: {e}")
         

@@ -156,18 +156,18 @@ class Settings(BaseSettings):
         )
 
     @property
-    def fast_llm(self) -> ChatOpenAI:
+    def fast_llm(self) -> ChatGoogleGenerativeAI:
         """高速・軽量なタスク用のLLMインスタンスを返す"""
-        return ChatOpenAI(
-            model=self.model.openai_fast_model,
+        return ChatGoogleGenerativeAI(
+            model=self.model.google_gemini_fast_model,
             temperature=self.model.temperature,
         )
 
     @property
-    def reporter_llm(self) -> ChatAnthropic:
+    def reporter_llm(self) -> ChatGoogleGenerativeAI:
         """レポート生成用のLLMインスタンスを返す"""
-        return ChatAnthropic(
-            model=self.model.anthropic_model,
+        return ChatGoogleGenerativeAI(
+            model=self.model.google_gemini_fast_model,
             temperature=self.model.temperature,
             max_tokens=8_192,
         )

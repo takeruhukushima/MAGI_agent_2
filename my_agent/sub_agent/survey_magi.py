@@ -16,6 +16,7 @@ from my_agent.chains.survey_magi.hearing_chain import HearingChain
 from my_agent.chains.survey_magi.topic_clarification_chain import TopicClarificationChain
 from my_agent.chains.survey_magi.search_executor_chain import SearchExecutorChain
 from my_agent.chains.survey_magi.relevance_filter_chain import RelevanceFilterChain
+# from my_agent.chains.survey_magi.web_page_reader_chain import WebPageReaderChain
 from my_agent.chains.survey_magi.summary_generator_chain import SummaryGeneratorChain
 from my_agent.chains.survey_magi.query_generator_chain import QueryGeneratorChain
 from my_agent.chains.survey_magi.document_summarizer_chain import DocumentSummarizerChain
@@ -69,6 +70,7 @@ class SurveyAgent:
         self.query_generator = QueryGeneratorChain(llm)
         self.search_executor = SearchExecutorChain(llm)
         self.relevance_filter = RelevanceFilterChain(llm)
+        # self.web_page_reader = WebPageReaderChain(llm)
         self.document_summarizer = DocumentSummarizerChain(llm)
         self.summary_generator = SummaryGeneratorChain(llm)
         
@@ -99,6 +101,7 @@ class SurveyAgent:
         workflow.add_node("query_generator", self.query_generator)
         workflow.add_node("search_executor", self.search_executor)
         workflow.add_node("relevance_filtering", self.relevance_filter)
+        # workflow.add_node("web_page_reader", self.web_page_reader)
         workflow.add_node("document_summarizer", self.document_summarizer)
         workflow.add_node("summary_generator", self.summary_generator)
         

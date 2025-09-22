@@ -53,25 +53,60 @@ class SurveyPrompts(BasePrompt):
     QUERY_GENERATOR_DESC: ClassVar[str] = "Generates academic search queries from a research theme."
 
     RELEVANCE_FILTER: ClassVar[str] = """
-    Filter and rank search results by relevance to the research theme.
-    
-    Research Theme: {research_theme}
-    Search Results:
-    {search_results}
-    
-    Most Relevant Results (with justifications):
-    """
+あなたは優秀なリサーチアシスタントです。あなたの仕事は、与えられた調査テーマに基づき、検索結果のリストをフィルタリングし、関連性の高い文書だけを特定することです。
+
+# 調査テーマ
+{research_theme}
+
+# 検索結果 (各結果には url, title, content が含まれます)
+{search_results}
+
+# 指示
+1.  各文書が調査テーマにどれだけ関連しているかを評価してください。
+2.  関連性が高いと判断した文書についてのみ、以下の情報を抽出・生成してください。
+    - **url**: 元の検索結果から正確にコピーしてください。
+    - **title**: 元の検索結果から正確にコピーしてください。
+    - **summary**: なぜその文書が調査テーマと関連しているのか、理由を簡潔に要約してください。
+    - **relevance_score**: 関連性を0から1のスコアで評価してください。
+    - **content**: **【最重要】元の検索結果に含まれる`content`（本文）を、一切変更せずにそのまま含めてください。**
+3.  最終的な出力は、必ず指定されたJSON形式に従ってください。
+
+**出力形式の例:**
+{{
+  "relevant_documents": [
+    {{
+      "url": "（文書1のURL）",
+      "title": "（文書1のタイトル）",
+      "summary": "（この文書がなぜ関連しているかの要約）",
+      "relevance_score": 0.9,
+      "content": "（文書1の元のcontentをそのままここに記述）"
+    }}
+  ]
+}}
+"""
     RELEVANCE_FILTER_DESC: ClassVar[str] = "Filters and ranks search results by relevance."
 
     SUMMARY_GENERATOR: ClassVar[str] = """
-    Synthesize key findings from relevant documents into a concise summary.
-    
-    Research Theme: {research_theme}
-    Relevant Documents:
-    {relevant_docs}
-    
-    Synthesized Summary:
-    """
+あなたは優秀なリサーチアシスタントです。以下の調査テーマと、各文書の要約を基に、包括的な調査サマリーを作成してください。
+
+# 調査テーマ
+{research_theme}
+
+# 参考文献リスト (各文書にはユニークな 'id' があります)
+{relevant_docs}
+
+# 各文書の詳細な要約 (各要約には対応する 'id' があります)
+{individual_summaries}
+
+# 指示
+1.  `individual_summaries` の内容を統合し、調査テーマに関する**概要（overview）**を記述してください。
+2.  `individual_summaries` から最も重要ないくつかの発見を**キーポイント（key_points）**としてリストアップしてください。
+3.  **【最重要】** あなたが概要やキーポイントの根拠として利用した**要約（`individual_summaries`内）**を特定してください。
+4.  その要約の `id` を使い、**`relevant_docs`リストから全く同じ`id`を持つ文書**を探し出してください。
+5.  その文書の**タイトル（title）**と**URL（url）**を正確に抜き出し、**参考文献（references）**としてリストアップしてください。この対応付けは**絶対に間違えないでください。**
+6.  最終的な出力は、必ず指定されたJSON形式に従ってください。
+"""
+
     SUMMARY_GENERATOR_DESC: ClassVar[str] = "Creates a synthesized summary from multiple documents."
 
     HEARING_PROMPT: ClassVar[str] = """

@@ -1,3 +1,4 @@
+import uuid
 from typing import List, Literal, Dict, Any
 
 from langchain_core.messages import BaseMessage
@@ -11,10 +12,13 @@ from my_agent.prompts import PromptManager
 
 class RelevantDocument(BaseModel):
     """A single relevant document with its summary."""
+    id: str = Field(..., description="A unique identifier for the document")
     url: str = Field(..., description="The URL of the relevant document")
     title: str = Field(..., description="The title of the document")
     summary: str = Field(..., description="A concise summary of the document's relevance")
     relevance_score: float = Field(..., description="A score from 0 to 1 indicating relevance")
+    # ▼▼▼ これを追加 ▼▼▼
+    content: str = Field(..., description="The original, full content of the document")
 
 
 class RelevanceScores(BaseModel):
@@ -77,7 +81,7 @@ class RelevanceFilterChain:
                 update={"relevant_documents": relevant_docs}
             )
             
-        except Exception as e:
+        except Exception as e:  
             print(f"  > Error during relevance filtering: {e}")
             # エラーが発生した場合も、空のリストを渡して次のステップに進む
             return Command(
@@ -95,8 +99,11 @@ class RelevanceFilterChain:
                 "research_theme": topic,
                 "search_results": documents
             })
+            # ▼▼▼ LLMからの返り値にIDを付与する ▼▼▼
+            for doc in result.relevant_documents:
+                doc.id = str(uuid.uuid4()) # 各文書にユニークIDを採番
             
-            print(f"  > DEBUG run() - LLM returned {len(result.relevant_documents)} documents")
+            print(f"  > DEBUG run() - LLM returned and assigned IDs to {len(result.relevant_documents)} documents")
             return result
             
         except Exception as e:
