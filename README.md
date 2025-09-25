@@ -51,5 +51,5 @@ my_agent/
    ```
 4. LangGraphサーバーを起動します：
    ```bash
-   langgraph up
+   uv run langgraph dev --no-reload
    ```
