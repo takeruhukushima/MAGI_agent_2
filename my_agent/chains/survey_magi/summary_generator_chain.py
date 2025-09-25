@@ -93,11 +93,18 @@ class SummaryGeneratorChain:
             if not processed_documents:
                 raise ValueError("No valid documents found after processing")
 
-            # ▼▼▼ 修正点: LLMに渡す前に content を削除する ▼▼▼
-            # 参考文献リスト用に、content以外の情報だけを抽出
+            # ▼▼▼ 修正点: LLMに渡すデータと参考文献用データを分ける ▼▼▼
+            # LLM用：contentを削除（トークン数節約）
             docs_for_prompt = [
                 {k: v for k, v in doc.items() if k != 'content'} 
                 for doc in processed_documents
+            ]
+            # 参考文献用：title, url, source等の情報を保持
+            docs_for_references = [
+                {
+                    'title': doc.get('title', doc.get('source', 'No Title')),
+                    'url': doc.get('url', doc.get('source', '#'))
+                } for doc in processed_documents
             ]
             # --- ▼▼▼ デバッグコードを追加 ▼▼▼ ---
             print("--- DEBUG: Checking summary lengths ---")
@@ -113,13 +120,18 @@ class SummaryGeneratorChain:
             # docs_for_prompt を渡すように変更
             print(f"    - relevant_docs (metadata only) count: {len(docs_for_prompt)}")
             print(f"    - individual_summaries count: {len(individual_summaries)}")
+            print(f"    - docs_for_references count: {len(docs_for_references)}")
 
             result = self.chain.invoke({
                 "research_theme": topic,
-                # ▼▼▼ 修正点: contentを削除したリストを渡す ▼▼▼
+                # ▼▼▼ LLMにはcontentを削除したリストを渡す ▼▼▼
                 "relevant_docs": docs_for_prompt,
                 "individual_summaries": individual_summaries
             })
+            
+            # ▼▼▼ 修正点: 参考文献情報を手動で設定する ▼▼▼
+            if hasattr(result, 'references'):
+                result.references = docs_for_references
             
             print(f"  > DEBUG run() - Structured LLM response received successfully")
             return result
