@@ -79,12 +79,6 @@ class PlanningAgent:
         workflow.add_node("methodology_suggester", self.methodology_suggester)
         workflow.add_node("tex_formatter", self.tex_formatter)
         
-        # エッジの追加
-        workflow.add_edge("goal_setting", "experimental_design")
-        workflow.add_edge("experimental_design", "timeline_generator")
-        workflow.add_edge("timeline_generator", "methodology_suggester")
-        workflow.add_edge("methodology_suggester", "tex_formatter")
-        
         workflow.set_entry_point("goal_setting")
         workflow.set_finish_point("tex_formatter")
 
