@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any, List, Literal, Optional
 
 from langchain_core.messages import BaseMessage
@@ -23,7 +24,7 @@ class MethodologyOption(BaseModel):
         ...,
         description="List of limitations or challenges of this methodology",
         min_items=1,
-        max_items=3
+        # max_items=3
     )
     suitability: int = Field(
         ...,
@@ -69,7 +70,7 @@ class MethodologySuggesterChain:
         print("--- [Chain] Planning MAGI: 2. Suggesting Methodologies ---")
         
         # Get the research goal from state
-        research_goal = state.get("research_goal", {})
+        research_goal = state.get("research_goal_result", {})
         
         try:
             # Generate methodology suggestions
@@ -90,8 +91,7 @@ class MethodologySuggesterChain:
             return Command(
                 goto="experimental_design",
                 update={
-                    "methodology_suggestions": suggestions.dict(),
-                    "selected_methodology": recommended.dict() if recommended else None,
+                    "methodology_result": suggestions.dict(),
                     "status": "methodologies_suggested"
                 }
             )
@@ -111,20 +111,29 @@ class MethodologySuggesterChain:
         research_goal: Dict[str, Any],
         messages: Optional[list[BaseMessage]] = None
     ) -> MethodologySuggestion:
-        """Generate methodology suggestions based on the research goal."""
+        """Generate and validate methodology suggestions."""
         try:
-            # Format messages for context if available
             conversation_context = self._format_messages(messages) if messages else ""
             
-            # Generate methodology suggestions
-            return self.chain.invoke({
-                "research_goal": str(research_goal),
+            # 1. LLMから結果を取得
+            result = self.chain.invoke({
+                "research_goal": json.dumps(research_goal, ensure_ascii=False, indent=2),
                 "conversation_context": conversation_context
             })
-            
+
+            # 2. 結果を辞書に変換
+            if isinstance(result, BaseModel):
+                as_dict = result.dict()
+            else:
+                as_dict = result
+
+            # 3. 修正済みの辞書を使い、再度Pydanticモデルで検証・構築
+            # (このモデルは単純なので、文字列化されたJSONの修正は不要)
+            return MethodologySuggestion(**as_dict)
+
         except Exception as e:
             raise RuntimeError(f"Failed to suggest methodologies: {str(e)}")
-    
+            
     def _format_messages(self, messages: list[BaseMessage]) -> str:
         """Format messages for the prompt context."""
         return "\n".join([f"{msg.type}: {msg.content}" for msg in messages])

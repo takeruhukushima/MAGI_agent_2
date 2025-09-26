@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Dict, Any, List, Literal, Optional
 from datetime import date, timedelta
@@ -31,14 +32,14 @@ class Milestone(BaseModel):
         description="Current status: not_started, in_progress, completed, or blocked"
     )
 
-    @validator('due_date')
-    def validate_date_format(cls, v):
-        """Validate the date format."""
-        try:
-            date.fromisoformat(v)
-            return v
-        except ValueError:
-            raise ValueError("Date must be in YYYY-MM-DD format")
+    # @validator('due_date')
+    # def validate_date_format(cls, v):
+    #     """Validate the date format."""
+    #     try:
+    #         date.fromisoformat(v)
+    #         return v
+    #     except ValueError:
+    #         raise ValueError("Date must be in YYYY-MM-DD format")
 
 
 class ProjectTimeline(BaseModel):
@@ -46,10 +47,9 @@ class ProjectTimeline(BaseModel):
     project_name: str = Field(..., description="Name of the project")
     start_date: str = Field(..., description="Project start date in YYYY-MM-DD format")
     end_date: str = Field(..., description="Project end date in YYYY-MM-DD format")
-    milestones: List[Milestone] = Field(
+    timeline_description: str = Field(
         ...,
-        description="List of project milestones",
-        min_items=3
+        description="A textual description of the project timeline and its key milestones."
     )
     buffer_days: int = Field(
         7,
@@ -93,8 +93,8 @@ class TimelineGeneratorChain:
         print("--- [Chain] Planning MAGI: 4. Generating Project Timeline ---")
         
         # Get the necessary data from state
-        experimental_design = state.get("experimental_design", {})
-        research_goal = state.get("research_goal", {})
+        experimental_design = state.get("experimental_design_result", {})
+        research_goal = state.get("research_goal_result", {})
         
         try:
             # Generate the project timeline
@@ -104,12 +104,12 @@ class TimelineGeneratorChain:
                 messages=state.get("messages", [])
             )
             
-            print(f"  > Timeline generated with {len(timeline.milestones)} milestones")
+            print(f"  > Timeline generated successfully.")
             
             return Command(
                 goto="tex_formatter",
                 update={
-                    "project_timeline": timeline.dict(),
+                    "timeline_result": timeline.dict(),
                     "status": "timeline_generated"
                 }
             )
@@ -130,22 +130,20 @@ class TimelineGeneratorChain:
         research_goal: Dict[str, Any],
         messages: Optional[list[BaseMessage]] = None
     ) -> ProjectTimeline:
-        """Generate a project timeline based on the experimental design."""
+        """Generate a project timeline."""
         try:
-            # Format messages for context if available
             conversation_context = self._format_messages(messages) if messages else ""
             
-            # Generate the project timeline
+            # LLMを呼び出し、直接結果を返すシンプルな形に戻す
             return self.chain.invoke({
-                "experimental_design": str(experimental_design),
-                "research_goal": str(research_goal),
+                "experimental_design": json.dumps(experimental_design, ensure_ascii=False, indent=2),
+                "research_goal": json.dumps(research_goal, ensure_ascii=False, indent=2),
                 "current_date": date.today().isoformat(),
                 "conversation_context": conversation_context
             })
-            
         except Exception as e:
             raise RuntimeError(f"Failed to generate timeline: {str(e)}")
-    
+
     def _format_messages(self, messages: list[BaseMessage]) -> str:
         """Format messages for the prompt context."""
         return "\n".join([f"{msg.type}: {msg.content}" for msg in messages])

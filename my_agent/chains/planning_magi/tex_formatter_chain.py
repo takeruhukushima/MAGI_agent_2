@@ -1,23 +1,20 @@
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
-from langgraph.types import Command
+import json
+from typing import Dict, Any, Optional
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel, Field
 
-from my_agent.utils.state import AgentState
+# 親グラフのState定義をインポートするのがベストプラクティスです
+# from my_agent.science_magi import ScienceAgentState
+# 見つからない場合は一時的にdictとして扱います
+try:
+    from my_agent.science_magi import ScienceAgentState
+except ImportError:
+    ScienceAgentState = dict
+
 from my_agent.prompts import PromptManager
 from my_agent.settings import settings
-
-class ResearchPlanTex(BaseModel):
-    """A structured representation of a research plan in TeX format."""
-    tex_content: str = Field(
-        ...,
-        description="The complete TeX document content for the research plan."
-    )
-    sections: Dict[str, str] = Field(
-        default_factory=dict,
-        description="A dictionary of section names to their TeX content."
-    )
 
 
 class TexFormatterChain:
@@ -31,110 +28,85 @@ class TexFormatterChain:
             model=settings.model.google_gemini_fast_model,
             temperature=settings.model.temperature
         )
-        
-        # Get the prompt template string from PromptManager
         prompt_template = PromptManager.get_prompt('report', 'TEX_COMPILER')
         self.prompt = ChatPromptTemplate.from_template(prompt_template)
-        
-        # Create the chain with structured output
+        # このChainは生のTeX文字列を生成するため、with_structured_outputは不要
         self.chain = self.prompt | self.llm
-    
-    def _get_planning_elements(self, state: AgentState) -> Dict[str, str]:
-        """Extract planning elements from the state."""
+
+    def _get_planning_elements(self, state: ScienceAgentState) -> Dict[str, str]:
+        """Extract and format planning elements from the state for the prompt."""
+        research_goal = state.get('research_goal_result', {})
         return {
-            "research_goal": state.get("research_goal", "N/A"),
-            "methodology": state.get("methodology", "N/A"),
-            "experimental_design": state.get("experimental_design", "N/A"),
-            "timeline": state.get("timeline", "N/A")
+            "paper_title": f"Research Plan: {research_goal.get('title', 'Untitled Research')}",
+            "draft_content": self._format_draft_content(state)
         }
     
-    async def __call__(self, state: AgentState) -> Command:
-        """
-        Format all planning elements into a TeX document.
+    def _format_draft_content(self, state: ScienceAgentState) -> str:
+        """状態から人間が読めるレポート用コンテンツを作成"""
+        research_goal = state.get("research_goal_result", {})
+        experimental_design = state.get("experimental_design_result", {})
+        timeline = state.get("timeline_result", {})
+        methodology = state.get("methodology_result", {})
         
-        Args:
-            state: The current agent state
-            
-        Returns:
-            Command: The next command to execute in the graph
-        """
+        # 各辞書から必要な値を抽出し、人間が読めるテキストを組み立てる
+        # json.dumpsではなく、値を取り出して整形する
+        content = f"""
+\\section*{{Research Goal}}
+\\subsection*{{{research_goal.get('title', 'N/A')}}}
+{research_goal.get('description', 'No description.')}
+
+\\subsection*{{Objectives}}
+\\begin{{itemize}}
+{"".join([f"  \\item {obj}\\n" for obj in research_goal.get('objectives', [])])}
+\\end{{itemize}}
+
+\\section*{{Methodology}}
+\\subsection*{{{methodology.get('name', 'N/A')}}}
+{methodology.get('description', 'No description.')}
+
+\\section*{{Experimental Design}}
+\\subsection*{{{experimental_design.get('title', 'N/A')}}}
+\\subsubsection*{{Hypothesis}}
+{experimental_design.get('hypothesis', 'N/A')}
+\\subsubsection*{{Variables}}
+{experimental_design.get('variables_description', 'N/A')}
+\\subsubsection*{{Timeline}}
+{timeline.get('timeline_description', 'N/A')}
+"""
+        return content
+
+    def __call__(self, state: ScienceAgentState) -> Dict[str, Any]:
+        """langgraphのノードとして呼び出されるメソッド"""
         print("--- [Chain] Planning MAGI: 5. Formatting TeX Report ---")
-        
         try:
-            # Format the TeX document
-            result = await self.run(state)
-            
-            if result.tex_content:
+            tex_document = self.run(state)
+            if tex_document and "% Error" not in tex_document:
                 print("  > TeX content generated successfully.")
-                return Command(
-                    update={
-                        "research_plan_tex": result.tex_content,
-                        "messages": [{"role": "system", "content": "Successfully generated TeX report."}]
-                    }
-                )
+                return {"tex_document": tex_document}
             else:
                 error_msg = "Failed to generate TeX content."
                 print(f"  > {error_msg}")
-                return Command(
-                    update={
-                        "research_plan_tex": "% Failed to generate TeX report.",
-                        "error": error_msg,
-                        "messages": [{"role": "system", "content": error_msg}]
-                    }
-                )
-                
+                return {"tex_document": "% Failed to generate TeX report.", "error": error_msg}
         except Exception as e:
             error_msg = f"Error formatting TeX: {str(e)}"
             print(f"  > {error_msg}")
-            return Command(
-                update={
-                    "research_plan_tex": f"% Error generating TeX: {str(e)}",
-                    "error": error_msg,
-                    "messages": [{"role": "system", "content": error_msg}]
-                }
-            )
+            return {"tex_document": f"% Error: {str(e)}", "error": error_msg}
     
-    async def run(self, state: AgentState) -> ResearchPlanTex:
-        """
-        Format all planning elements into a TeX document.
-        
-        Args:
-            state: The current agent state
-            
-        Returns:
-            ResearchPlanTex: The formatted TeX document
-        """
+    def run(self, state: ScienceAgentState) -> str:
+        """すべての計画要素をTeX文書に整形する"""
         try:
-            # Format the input for the prompt
+            if not state:
+                raise ValueError("No state provided for TeX formatting")
+            
             formatted_input = self._get_planning_elements(state)
-            
-            # Generate the TeX content
+            # LLMを呼び出し、AIMessageオブジェクトを取得
             response = self.chain.invoke(formatted_input)
-            tex_content = response.content
             
-            # Extract sections if possible (this is a simple example)
-            sections = {}
-            if "\section" in tex_content:
-                # This is a simplified section extraction
-                import re
-                section_matches = re.finditer(r'\\(section|subsection|subsubsection)\*?\{(.*?)\}(.*?)(?=\\section|\Z)', 
-                                            tex_content, 
-                                            re.DOTALL)
-                
-                for match in section_matches:
-                    section_type = match.group(1)
-                    section_title = match.group(2).strip()
-                    section_content = match.group(3).strip()
-                    sections[f"{section_type}:{section_title}"] = section_content
-            
-            return ResearchPlanTex(
-                tex_content=tex_content,
-                sections=sections
-            )
+            # AIMessageオブジェクトから生のテキストコンテンツを返す
+            return response.content
             
         except Exception as e:
-            # Return a minimal error document if generation fails
-            error_content = (
+            return (
                 "% Error generating TeX document\n"
                 "\\documentclass{article}\n"
                 "\\begin{document}\n"
@@ -142,18 +114,3 @@ class TexFormatterChain:
                 "Failed to generate TeX document.\n"
                 "\\end{document}"
             )
-            return ResearchPlanTex(
-                tex_content=error_content,
-                sections={"error": str(e)}
-            )
-
-
-# Create a single instance of the chain
-from my_agent.settings import settings
-
-tex_formatter_chain = TexFormatterChain(
-    llm=ChatGoogleGenerativeAI(
-        model=settings.model.google_gemini_fast_model,
-        temperature=settings.model.temperature
-    )
-)

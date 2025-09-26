@@ -151,40 +151,157 @@ class PlanningPrompts(BasePrompt):
     """Prompts for the Planning MAGI component."""
     
     GOAL_SETTING: ClassVar[str] = """
-    Define a clear and specific primary research goal based on the theme and survey.
+    You are a senior researcher tasked with defining a clear, actionable, and specific primary research goal.
+    Based on the provided theme and survey summary, generate a research goal in the specified JSON format.
+    The goal must be broken down into at least 3 specific, measurable objectives.
+
+    **Research Theme:**
+    {research_theme}
+
+    **Survey Summary:**
+    {survey_summary}
+
+    **Example Output Format:**
+    {{
+      "title": "The Effect of Temperature on Enzyme Activity",
+      "description": "To investigate and quantify the relationship between temperature and the catalytic activity of the enzyme catalase.",
+      "objectives": [
+        "To measure the rate of oxygen production at various temperatures ranging from 10°C to 70°C.",
+        "To determine the optimal temperature for catalase activity.",
+        "To analyze the thermal stability of the enzyme and identify the temperature at which it denatures."
+      ],
+      "expected_outcomes": [
+        "A graph plotting temperature versus reaction rate.",
+        "A report identifying the optimal temperature and denaturation point."
+      ],
+      "success_metrics": [
+        "Clear and reproducible data points for each temperature level.",
+        "Identification of an optimal temperature with a confidence interval of +/- 2°C."
+      ]
+    }}
     
-    Research Theme: {research_theme}
-    Survey Summary: {survey_summary}
+    Your response must be only the JSON object, with no additional text before or after.
     
-    Primary Research Goal:
+    **Primary Research Goal (JSON):**
     """
     GOAL_SETTING_DESC: ClassVar[str] = "Defines a specific research goal from theme and survey."
 
     METHODOLOGY_SUGGESTER: ClassVar[str] = """
-    Suggest a suitable methodology for the research goal.
-    
-    Research Goal: {research_goal}
-    
-    Suggested Methodology:
+    You are a research advisor suggesting suitable methodologies for a given research goal.
+    Based on the provided research goal, suggest 1 to 3 suitable methodologies and evaluate their suitability.
+    Your response MUST be a single JSON object with no additional text.
+
+    **Research Goal:**
+    {research_goal}
+
+    **Example Output Format:**
+    {{
+      "methodologies": [
+        {{
+          "name": "Methodology Name (e.g., A/B Testing)",
+          "description": "A brief explanation of what this methodology entails.",
+          "suitability": 5,
+          "justification": "Why this methodology is highly suitable for the stated research goal."
+        }},
+        {{
+          "name": "Alternative Methodology (e.g., Survey)",
+          "description": "A brief explanation of this alternative.",
+          "suitability": 3,
+          "justification": "Why this might be less suitable or has certain limitations for this goal."
+        }}
+      ]
+    }}
+
+    **Suggested Methodologies (JSON):**
     """
     METHODOLOGY_SUGGESTER_DESC: ClassVar[str] = "Suggests appropriate research methodologies."
 
     EXPERIMENTAL_DESIGN: ClassVar[str] = """
-    Design a detailed experiment based on the research goal and methodology.
+    You are a meticulous research scientist and your task is to create a comprehensive experimental design.
+    Based on the research goal and selected methodology, generate a single, valid JSON object that strictly adheres to the provided format and constraints.
+    DO NOT include any explanatory text before or after the JSON object.
+
+    ## Input Data
     
-    Research Goal: {research_goal}
-    Methodology: {methodology}
-    
-    Experimental Design:
+    **Research Goal:**
+    {research_goal}
+
+    **Selected Methodology:**
+    {methodology}
+
+    ## Example of a Perfect Output
+
+    ```json
+    {{
+      "title": "A/B Test for New 'Collaborative Editing' Feature",
+      "objective": "To determine if the new collaborative editing feature improves user satisfaction and task efficiency.",
+      "hypothesis": "Users in the experimental group (with the new feature) will report higher satisfaction scores and complete the collaborative task faster than the control group.",
+      "variables_description": "Independent Variable: Activation of the 'Collaborative Editing' feature. Dependent Variables: User satisfaction score (measured on a 1-5 SUS scale), Task completion time (in seconds). Control Variables: The specific collaborative task given, User's prior experience with similar tools.",
+      "groups": [
+          {{
+              "name": "Control Group",
+              "description": "Participants use the application without the 'Collaborative Editing' feature.",
+              "sample_size": 50,
+              "variables": {{
+                  "feature_enabled": false
+              }}
+          }},
+          {{
+              "name": "Experimental Group",
+              "description": "Participants use the application with the 'Collaborative Editing' feature enabled.",
+              "sample_size": 50,
+              "variables": {{
+                  "feature_enabled": true
+              }}
+          }}
+      ],
+      "procedure": [
+        {{
+          "step_number": 1,
+          "description": "Recruit 100 participants with experience in collaborative document editing via an online platform.",
+          "duration": "5 days",
+          "materials": ["Online recruitment platform subscription"]
+        }},
+        {{
+          "step_number": 2,
+          "description": "Randomly assign participants to either the control or experimental group using a randomization script.",
+          "duration": "1 day",
+          "materials": ["Python script for randomization"]
+        }},
+        {{
+          "step_number": 3,
+          "description": "Each participant is asked to complete a standardized 15-minute collaborative writing task.",
+          "duration": "7 days",
+          "materials": ["Web application with the feature flag", "Standardized task document"]
+        }}
+      ],
+      "data_collection_methods": ["Automated logging of task completion time directly from the application's backend.", "Post-task System Usability Scale (SUS) survey to measure user satisfaction."],
+      "analysis_methods": ["Independent samples t-test to compare the mean task completion times between the two groups.", "Mann-Whitney U test for comparing the ordinal SUS satisfaction scores."],
+      "timeline_description": "The entire experiment is planned to run for approximately 6 weeks. Weeks 1-2 will be dedicated to participant recruitment. Weeks 3-4 will be for data collection. Week 5 is for data analysis, and Week 6 is for compiling the final report.",
+      "ethical_considerations": ["All participant data will be anonymized to protect privacy.", "Informed consent will be obtained from all participants before they begin the study."]
+    }}
+    ```
+
+    **Experimental Design (JSON):**
     """
     EXPERIMENTAL_DESIGN_DESC: ClassVar[str] = "Creates a detailed experimental design."
-
+    
     TIMELINE_GENERATOR: ClassVar[str] = """
-    Create a project timeline based on the experimental design.
-    
-    Experimental Design: {experimental_design}
-    
-    Project Timeline:
+    You are a project manager. Based on the detailed experimental design, create a structured project timeline.
+    Your response MUST be a single JSON object.
+
+    **Experimental Design:**
+    {experimental_design}
+
+    **Example Output Format:**
+    {{
+      "project_name": "Optimization of Magnetoferritin Synthesis",
+      "start_date": "{current_date}",
+      "end_date": "YYYY-MM-DD",
+      "timeline_description": "Week 1-2: Finalize experimental protocols and procure materials. Week 3-6: Synthesize and characterize all magnetoferritin samples. Week 7-8: Conduct hyperthermia experiments and collect data. Week 9-10: Analyze data and prepare final report."
+    }}
+
+    **Project Timeline (JSON):**
     """
     TIMELINE_GENERATOR_DESC: ClassVar[str] = "Generates a project timeline."
 

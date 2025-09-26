@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any, Literal, Optional
 
 from langchain_core.messages import BaseMessage
@@ -57,6 +58,18 @@ class GoalSettingChain:
         survey_summary = state.get("survey_summary", {})
         research_theme = state.get("research_theme", "")
         
+        # ▼▼▼ ここからデバッグコード ▼▼▼
+        print("\n--- DEBUG: GoalSettingChain Inputs ---")
+        print(f"Type of research_theme: {type(research_theme)}")
+        print(f"Value of research_theme: '{research_theme}'")
+        print("-" * 20)
+        print(f"Type of survey_summary: {type(survey_summary)}")
+        # survey_summaryは大きい可能性があるので、JSONで見やすく表示
+        print("Value of survey_summary:")
+        print(json.dumps(survey_summary, ensure_ascii=False, indent=2))
+        print("------------------------------------\n")
+        # ▲▲▲ ここまでデバッグコード ▲▲▲
+
         try:
             # Generate the research goal
             goal = self.run(
@@ -70,7 +83,7 @@ class GoalSettingChain:
             return Command(
                 goto="methodology_suggester",
                 update={
-                    "research_goal": goal.dict(),
+                    "research_goal_result": goal.dict(),
                     "status": "goal_set"
                 }
             )
@@ -99,7 +112,7 @@ class GoalSettingChain:
             return Command(
                 goto="methodology_suggester",
                 update={
-                    "research_goal": default_goal.dict(),
+                    "research_goal_result": default_goal.dict(),
                     "status": "default_goal_used"
                 }
             )

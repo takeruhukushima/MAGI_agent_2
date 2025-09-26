@@ -76,11 +76,22 @@ class SurveyAgent:
         
         self.graph = self._create_graph()
 
-    def __call__(self, state=None) -> CompiledStateGraph:
-        if state is None:
-            return self.graph
-        return self.graph.invoke(state)
-
+    def __call__(self, state: dict) -> dict:
+        """状態を受け取り、処理結果を返す"""
+        result = self.graph.invoke(
+            input=state,
+            config={"recursion_limit": self.recursion_limit}
+        )
+        
+        # デバッグ用
+        print("=== Survey Agent Final Output Debug ===")
+        print(f"Result keys: {list(result.keys()) if isinstance(result, dict) else type(result)}")
+        if isinstance(result, dict):
+            print(f"research_theme: '{result.get('research_theme')}'")
+            print(f"survey_summary keys: {list(result.get('survey_summary', {}).keys())}")
+        print("=====================================")
+        
+        return result
     def _should_request_feedback(self, state: dict) -> Literal["human_feedback", "topic_clarification"]:
         """stateからhearingオブジェクトを安全に取得し、分岐先を決定する"""
         hearing_result = state.get("hearing")

@@ -27,6 +27,10 @@ class ScienceAgentPrivateState(TypedDict):
     execution_agent: ExecutionAgent
     analysis_agent: AnalysisAgent
     report_agent: ReportAgent
+
+    research_theme: str  # ← これが必要
+    survey_summary: dict  # ← これが必要
+
     final_output: str
     retry_count: int
 

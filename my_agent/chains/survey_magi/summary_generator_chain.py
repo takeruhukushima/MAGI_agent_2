@@ -1,13 +1,14 @@
-import asyncio
-from typing import List, Literal, Dict, Any, Optional
+import json
+from typing import List, Dict, Any
 
-from langchain_core.messages import BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.types import interrupt
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from my_agent.prompts import PromptManager
+from my_agent.settings import settings
 
 
 class SurveySummary(BaseModel):
@@ -36,38 +37,34 @@ class SummaryGeneratorChain:
         print("--- [Chain] Survey MAGI: 5. Generating Summary ---")
         topic = state.get("research_theme", "N/A")
         relevant_documents = state.get("relevant_documents", [])
-        
-        # ▼▼▼ 修正点①: stateからindividual_summariesを取得する ▼▼▼
         individual_summaries = state.get("individual_summaries", [])
 
-        # 関連情報なし
         if not relevant_documents or len(relevant_documents) == 0:
             message = "調査を完了しましたが、関連する情報が見つかりませんでした。"
             interrupt(message)
+            return {"survey_summary": None, "research_theme": topic,"status": "summary_failed"}
 
-        # 有効な文書か確認
+
         valid_documents = [doc for doc in relevant_documents if doc and isinstance(doc, dict)]
         if not valid_documents:
             message = "調査を完了しましたが、有効な文書が見つかりませんでした。"
             interrupt(message)
+            return {"survey_summary": {}, "research_theme": topic}
 
         print(f"  > Processing {len(valid_documents)} valid documents...")
         
-        # ▼▼▼ 修正点②: runメソッドにindividual_summariesを渡す ▼▼▼
         summary = self.run(topic, valid_documents, individual_summaries)
         print("  > Survey summary generated successfully.")
 
-        # 1. すべての情報を整形して1つのメッセージを作成する
+        # ユーザーへの最終メッセージを作成して表示
         final_message_parts = []
         final_message_parts.append(f"調査を完了しました。**{topic}**に関する要約です。\n")
         final_message_parts.append(f"### 概要\n{summary.overview}\n")
-        
         if summary.key_points:
             final_message_parts.append("### キーポイント")
             for i, point in enumerate(summary.key_points, 1):
                 final_message_parts.append(f"{i}. {point}")
-            final_message_parts.append("") # 改行のため
-            
+            final_message_parts.append("")
         if summary.references:
             final_message_parts.append("### 参考文献")
             for i, ref in enumerate(summary.references, 1):
@@ -81,72 +78,36 @@ class SummaryGeneratorChain:
         final_message = "\n".join(final_message_parts)
         interrupt(final_message)
 
+        # Stateを更新するための辞書を返す
+        return {
+            "survey_summary": summary.dict(),
+            "research_theme": topic,
+            "status": "success",
+            "message": final_message
+        }
 
     def run(self, topic: str, documents: List[Dict[str, Any]], individual_summaries: List[Dict[str, Any]]) -> SurveySummary:
-        """Generate a summary from the relevant documents."""
         try:
-            if not documents:
-                raise ValueError("No documents provided for summary generation")
-            
-            # ... (processed_documentsの準備までは同じ)
-            processed_documents = [doc for doc in documents if isinstance(doc, dict)]
-            if not processed_documents:
-                raise ValueError("No valid documents found after processing")
-
-            # ▼▼▼ 修正点: LLMに渡すデータと参考文献用データを分ける ▼▼▼
-            # LLM用：contentを削除（トークン数節約）
+            # ... (runメソッドのロジックは変更なし) ...
             docs_for_prompt = [
                 {k: v for k, v in doc.items() if k != 'content'} 
-                for doc in processed_documents
+                for doc in documents
             ]
-            # 参考文献用：title, url, source等の情報を保持
-            docs_for_references = [
-                {
-                    'title': doc.get('title', doc.get('source', 'No Title')),
-                    'url': doc.get('url', doc.get('source', '#'))
-                } for doc in processed_documents
-            ]
-            # --- ▼▼▼ デバッグコードを追加 ▼▼▼ ---
-            print("--- DEBUG: Checking summary lengths ---")
-            total_chars = sum(len(s.get('summary', '')) for s in individual_summaries)
-            print(f"  > Total characters in all individual_summaries: {total_chars}")
-            if individual_summaries:
-                print(f"  > Example summary length: {len(individual_summaries[0].get('summary', ''))} chars")
-            print("------------------------------------")
-            # --- ▲▲▲ デバッグコードここまで ▲▲▲ ---
             
-            print(f"  > DEBUG run() - About to call LLM with:")
-            print(f"    - research_theme: {topic}")
-            # docs_for_prompt を渡すように変更
-            print(f"    - relevant_docs (metadata only) count: {len(docs_for_prompt)}")
-            print(f"    - individual_summaries count: {len(individual_summaries)}")
-            print(f"    - docs_for_references count: {len(docs_for_references)}")
-
             result = self.chain.invoke({
                 "research_theme": topic,
-                # ▼▼▼ LLMにはcontentを削除したリストを渡す ▼▼▼
                 "relevant_docs": docs_for_prompt,
                 "individual_summaries": individual_summaries
             })
             
-            # ▼▼▼ 修正点: 参考文献情報を手動で設定する ▼▼▼
+            # 参考文献情報を手動で設定
             if hasattr(result, 'references'):
+                docs_for_references = [
+                    {'title': doc.get('title', 'No Title'), 'url': doc.get('url', '#')}
+                    for doc in documents
+                ]
                 result.references = docs_for_references
             
-            print(f"  > DEBUG run() - Structured LLM response received successfully")
             return result
-            
         except Exception as e:
-            print(f"  > DEBUG run() - Exception in run(): {e}")
             raise RuntimeError(f"Summary generation failed: {str(e)}")
-
-
-# Create a single instance of the chain
-from my_agent.settings import settings
-
-summary_generator_chain = SummaryGeneratorChain(
-    llm=ChatGoogleGenerativeAI(
-        model=settings.model.google_gemini_fast_model,
-        temperature=settings.model.temperature
-    )
-)

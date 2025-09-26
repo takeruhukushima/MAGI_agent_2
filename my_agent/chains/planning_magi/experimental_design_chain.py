@@ -1,3 +1,4 @@
+import json 
 from pathlib import Path
 from typing import Dict, Any, List, Literal, Optional
 
@@ -18,10 +19,7 @@ class ExperimentalGroup(BaseModel):
     name: str = Field(..., description="Name of the group")
     description: str = Field(..., description="Description of the group")
     sample_size: int = Field(..., description="Number of samples in this group", gt=0)
-    variables: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Variables and their values for this group"
-    )
+    variables_description: str = Field(..., description="A textual description of the variables for this group (e.g., 'Dark mode: enabled, Font size: 12px')")
 
 
 class ExperimentalProcedure(BaseModel):
@@ -40,9 +38,9 @@ class ExperimentalDesign(BaseModel):
     title: str = Field(..., description="Title of the experimental design")
     objective: str = Field(..., description="Objective of the experiment")
     hypothesis: str = Field(..., description="Testable hypothesis")
-    variables: Dict[str, List[str]] = Field(
+    variables_description: str = Field(
         ...,
-        description="Dictionary of independent and dependent variables"
+        description="A textual description of the independent, dependent, and control variables."
     )
     groups: List[ExperimentalGroup] = Field(
         ...,
@@ -52,7 +50,7 @@ class ExperimentalDesign(BaseModel):
     procedure: List[ExperimentalProcedure] = Field(
         ...,
         description="Step-by-step experimental procedure",
-        min_items=3
+        #min_items=3
     )
     data_collection_methods: List[str] = Field(
         ...,
@@ -64,21 +62,21 @@ class ExperimentalDesign(BaseModel):
         description="Methods for analyzing the collected data",
         min_items=1
     )
-    timeline: Dict[str, str] = Field(
+    timeline_description: str = Field(
         ...,
-        description="Estimated timeline for the experiment"
+        description="A textual description of the estimated timeline for the experiment."
     )
     ethical_considerations: List[str] = Field(
         default_factory=list,
         description="Ethical considerations and approvals needed"
     )
 
-    @validator('timeline')
-    def validate_timeline(cls, v):
-        """Validate that the timeline has start and end dates."""
-        if 'start_date' not in v or 'end_date' not in v:
-            raise ValueError("Timeline must include 'start_date' and 'end_date'")
-        return v
+    # @validator('timeline')
+    # def validate_timeline(cls, v):
+    #     """Validate that the timeline has start and end dates."""
+    #     if 'start_date' not in v or 'end_date' not in v:
+    #         raise ValueError("Timeline must include 'start_date' and 'end_date'")
+    #     return v
 
 
 class ExperimentalDesignChain:
@@ -102,8 +100,8 @@ class ExperimentalDesignChain:
         print("--- [Chain] Planning MAGI: 3. Designing Experiment ---")
         
         # Get the necessary data from state
-        research_goal = state.get("research_goal", {})
-        methodology = state.get("selected_methodology", {})
+        research_goal = state.get("research_goal_result", {})
+        methodology = state.get("methodology_result", {})
         
         try:
             # Generate the experimental design
@@ -118,7 +116,7 @@ class ExperimentalDesignChain:
             return Command(
                 goto="timeline_generator",
                 update={
-                    "experimental_design": design.dict(),
+                    "experimental_design_result": design.dict(),
                     "status": "experiment_designed"
                 }
             )
@@ -140,21 +138,23 @@ class ExperimentalDesignChain:
         messages: Optional[list[BaseMessage]] = None
     ) -> ExperimentalDesign:
         """Generate an experimental design based on the research goal and methodology."""
+
         try:
-            # Format messages for context if available
             conversation_context = self._format_messages(messages) if messages else ""
             
-            # Generate the experimental design
+            # LLMを呼び出し、直接結果を返すシンプルな形に戻す
             return self.chain.invoke({
-                "research_goal": str(research_goal),
-                "methodology": str(methodology),
-                "current_date": date.today().isoformat(),
-                "conversation_context": conversation_context
-            })
+                 "research_goal": json.dumps(research_goal, ensure_ascii=False, indent=2),
+                 "methodology": json.dumps(methodology, ensure_ascii=False, indent=2),
+                 "current_date": date.today().isoformat(),
+                 "conversation_context": conversation_context
+             })
             
+
+
         except Exception as e:
             raise RuntimeError(f"Failed to design experiment: {str(e)}")
-    
+            
     def _format_messages(self, messages: list[BaseMessage]) -> str:
         """Format messages for the prompt context."""
         return "\n".join([f"{msg.type}: {msg.content}" for msg in messages])
