@@ -23,14 +23,14 @@ from my_agent.models import ReadingResult
 # from my_agent.searcher.arxiv_searcher import ArxivSearcher
 from my_agent.settings import settings
 
-from my_agent.sub_agent.survey_magi import SurveyAgentState # SurveyAgentStateをインポート
+# from my_agent.sub_agent.survey_magi import SurveyAgentState # SurveyAgentStateをインポート
 
-# class PlanningAgentInputState(TypedDict):
-#     # Survey Agentからの入力を受け取れるように拡張
-#     research_theme: str
-#     decomposed_tasks: list[str]
-#     # 必要であれば、SurveyAgentの他の出力もここに追加
-#     survey_summary: dict
+class PlanningAgentInputState(TypedDict):
+    # Survey Agentからの入力を受け取れるように拡張
+    research_theme: str
+    decomposed_tasks: list[str]
+    # 必要であれば、SurveyAgentの他の出力もここに追加
+    survey_summary: dict
 
 class PlanningAgentProcessState(TypedDict):
     # 各ステップの出力を保存
@@ -46,7 +46,7 @@ class PlanningAgentOutputState(TypedDict):
 
 
 class PlanningAgentState(
-    SurveyAgentState,
+    PlanningAgentInputState,
     PlanningAgentProcessState,
     PlanningAgentOutputState,
 ):
@@ -70,39 +70,88 @@ class PlanningAgent:
         
         self.graph = self._create_graph()
 
-    def __call__(self, state:SurveyAgentState) -> CompiledStateGraph:
+    def __call__(self, state: PlanningAgentInputState) -> CompiledStateGraph:
         if state is None:
             return self.graph
-        # ▼▼▼ Survey Agentからのデータ変換 ▼▼▼
-        if "research_theme" in state and "goal" not in state:
-            state = {
-                **state,
-                "goal": state.get("research_theme", "未設定の研究目標"),
-                "tasks": state.get("decomposed_tasks", ["タスクが未分解"])
-            }
+            
+        # ▼▼▼ Survey Agentからのデータ変換を修正 ▼▼▼
+        processed_state = state.copy()
+        
+        # research_themeが空または空文字列の場合、survey_summaryから抽出
+        research_theme = processed_state.get('research_theme', '').strip()
+        if not research_theme and 'survey_summary' in processed_state:
+            survey_summary = processed_state['survey_summary']
+            if isinstance(survey_summary, dict) and 'overview' in survey_summary:
+                # overviewから研究テーマを抽出（最初の文を使用）
+                overview = survey_summary['overview']
+                first_sentence = overview.split('.')[0] + '.'
+                processed_state['research_theme'] = first_sentence
+            elif isinstance(survey_summary, dict) and 'key_points' in survey_summary:
+                # key_pointsがある場合は最初のポイントを使用
+                key_points = survey_summary['key_points']
+                if key_points and isinstance(key_points, list):
+                    processed_state['research_theme'] = key_points[0]
+        
+        # 後方互換性のため、goalもresearch_themeから設定
+        if 'research_theme' in processed_state and 'goal' not in processed_state:
+            processed_state['goal'] = processed_state['research_theme']
+        
+        # decomposed_tasksが空の場合のデフォルト値設定
+        if not processed_state.get('decomposed_tasks'):
+            processed_state['decomposed_tasks'] = ["研究計画を立案する"]
+            
+        # tasksもdecomposed_tasksから設定（後方互換性）
+        if 'decomposed_tasks' in processed_state and 'tasks' not in processed_state:
+            processed_state['tasks'] = processed_state['decomposed_tasks']
         
         print("=== Planning Agent State Debug ===")
-        print(f"Input state keys: {list(state.keys())}")
-        print(f"Goal: {state.get('goal', 'Not set')}")
+        print(f"Original research_theme: '{state.get('research_theme', 'Not found')}'")
+        print(f"Processed research_theme: '{processed_state.get('research_theme', 'Not found')}'")
+        print(f"Survey summary exists: {'survey_summary' in processed_state}")
         print("=================================")
          
         # 同期実行に変更（全てのチェーンが同期なので）
-        return self.graph.invoke(state)
+        return self.graph.invoke(processed_state)
  
     async def async_invoke(self, state):
         """非同期版の呼び出し（必要に応じて）"""
-        return await self.graph.ainvoke(state)
+        # 同じ処理を非同期版でも適用
+        processed_state = state.copy()
+        
+        # research_themeが空または空文字列の場合、survey_summaryから抽出
+        research_theme = processed_state.get('research_theme', '').strip()
+        if not research_theme and 'survey_summary' in processed_state:
+            survey_summary = processed_state['survey_summary']
+            if isinstance(survey_summary, dict) and 'overview' in survey_summary:
+                overview = survey_summary['overview']
+                first_sentence = overview.split('.')[0] + '.'
+                processed_state['research_theme'] = first_sentence
+            elif isinstance(survey_summary, dict) and 'key_points' in survey_summary:
+                key_points = survey_summary['key_points']
+                if key_points and isinstance(key_points, list):
+                    processed_state['research_theme'] = key_points[0]
+        
+        if 'research_theme' in processed_state and 'goal' not in processed_state:
+            processed_state['goal'] = processed_state['research_theme']
+            
+        if not processed_state.get('decomposed_tasks'):
+            processed_state['decomposed_tasks'] = ["研究計画を立案する"]
+            
+        if 'decomposed_tasks' in processed_state and 'tasks' not in processed_state:
+            processed_state['tasks'] = processed_state['decomposed_tasks']
+            
+        return await self.graph.ainvoke(processed_state)
 
     def _create_graph(self) -> CompiledStateGraph:
         workflow = StateGraph(
             PlanningAgentState,
-            input=SurveyAgentState,
+            input=PlanningAgentInputState,
             output=PlanningAgentOutputState,
         )
         workflow.add_node("goal_setting", self.goal_setting)
+        workflow.add_node("methodology_suggester", self.methodology_suggester)
         workflow.add_node("experimental_design", self.experimental_design)
         workflow.add_node("timeline_generator", self.timeline_generator)
-        workflow.add_node("methodology_suggester", self.methodology_suggester)
         workflow.add_node("tex_formatter", self.tex_formatter)
         workflow.add_node("final_output", self._final_output_handler)
 
@@ -164,7 +213,7 @@ class PlanningAgent:
     #         "processing_reading_results": [reading_result] if reading_result else []
     #     }
 
-    # def _organize_results(self, state: PaperSearchAgentState) -> dict:
+    # def _organize_results(self, state: PlanningAgentState) -> dict:
     #     processing_reading_results = state.get("processing_reading_results", [])
     #     reading_results = []
 

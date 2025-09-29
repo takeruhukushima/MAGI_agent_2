@@ -77,7 +77,7 @@ class ScienceAgent:
         
         # Define the workflow edges
         workflow.add_edge("survey", "planning")
-        workflow.add_edge("planning", "analysis")
+        # workflow.add_edge("planning", "analysis")
         workflow.add_edge("planning", "execution")  # Uncomment when ready
         workflow.add_edge("execution", "analysis")  # Uncomment when ready
         workflow.add_edge("analysis", "generate_report")

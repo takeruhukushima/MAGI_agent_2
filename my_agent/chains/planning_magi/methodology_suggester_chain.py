@@ -69,11 +69,9 @@ class MethodologySuggesterChain:
         """Execute the chain and determine next node."""
         print("--- [Chain] Planning MAGI: 2. Suggesting Methodologies ---")
         
-        # Get the research goal from state
         research_goal = state.get("research_goal_result", {})
         
         try:
-            # Generate methodology suggestions
             suggestions = self.run(
                 research_goal=research_goal,
                 messages=state.get("messages", [])
@@ -91,7 +89,8 @@ class MethodologySuggesterChain:
             return Command(
                 goto="experimental_design",
                 update={
-                    "methodology_result": suggestions.dict(),
+                    "methodology_result": recommended.dict() if recommended else {},  # ← 修正
+                    "methodology_suggestions": suggestions.dict(),  # ← 全体も保存（オプション）
                     "status": "methodologies_suggested"
                 }
             )
@@ -101,6 +100,7 @@ class MethodologySuggesterChain:
             return Command(
                 goto="experimental_design",
                 update={
+                    "methodology_result": {},  # ← 空の辞書を設定
                     "status": "methodology_suggestion_failed",
                     "error": str(e)
                 }
